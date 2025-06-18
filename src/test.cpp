@@ -1,4 +1,5 @@
 #include "../include/tcpip.h"
+#include <iomanip>
 
 int main()
 {
@@ -8,14 +9,19 @@ int main()
         return 1;
     }
 
-    // 2. Bind to loopback interface
     sockaddr_ll sll {};
     sll.sll_family = AF_PACKET;
     sll.sll_protocol = htons(ETH_P_ALL);
-    sll.sll_ifindex = if_nametoindex("lo"); // or "eth0"
-    bind(raw_sock, (sockaddr*)&sll, sizeof(sll));
+    sll.sll_ifindex = if_nametoindex("lo");
+    if (bind(raw_sock, (sockaddr*)&sll, sizeof(sll)) < 0) {
+        perror("bind");
+        return 1;
+    }
 
-    // 3. Send data using normal TCP socket
+    // Optional: give the socket time to start listening
+    sleep(1);
+
+    // Send data
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     sockaddr_in server_addr {};
     server_addr.sin_family = AF_INET;
@@ -27,14 +33,23 @@ int main()
     send(sock, msg, strlen(msg), 0);
     close(sock);
 
-    // 4. Receive one packet
+    // Receive
     char buffer[65536];
+    std::cout << "Waiting for packet..." << std::endl;
     int bytes = recv(raw_sock, buffer, sizeof(buffer), 0);
+    if (bytes < 0) {
+        perror("recv");
+        return 1;
+    }
+
     std::cout << "Captured " << bytes << " bytes" << std::endl;
 
-    // You can now parse the Ethernet/IP/TCP headers manually here
-
-    close(raw_sock);
+    for (int i = 0; i < bytes; ++i) {
+    std::cout << std::hex << std::setw(2) << std::setfill('0') << (0xff & buffer[i]) << " ";
+    if ((i + 1) % 16 == 0)
+        std::cout << std::endl;
+    }
+    std::cout << std::dec << std::endl; // back to decimal output
 
 
     //PCAP LIB METHOD
